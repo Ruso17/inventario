@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Incluir Font Awesome desde un CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="icon" href="icono.ico">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.18/jspdf.plugin.autotable.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Filtrar la tabla
+            $("#searchInput").on("keyup", function() {
+                var value = $(this).val().toLowerCase();
+                var hasResults = false;
+
+                $("#inventoryTableBody tr").filter(function() {
+                    var isVisible = $(this).text().toLowerCase().indexOf(value) > -1;
+                    $(this).toggle(isVisible);
+                    if (isVisible) {
+                        hasResults = true;
+                    }
+                });
+
+                // Mostrar mensaje si no hay resultados
+                if (!hasResults) {
+                    $("#noDataMessage").show();
+                } else {
+                    $("#noDataMessage").hide();
+                }
+            });
+        });
+    </script>
+    <title>Inventario Duran</title>
+    <style>
+        body {
+            background-image: url(fondo.avif);
+            background-repeat: no-repeat;         
+            background-position: center;          
+            background-size: cover;               
+            background-attachment: fixed;         
+            background-clip: border-box;          
+            background-origin: padding-box;       
+            background-blend-mode: multiply;      
+        }
+    </style>
+</head>
+<body>
+    <center><h1 style="color: white;">Gestión de Materiales DURAN</h1></center>
+    <div class="container mt-5">
+        <div class="d-flex mb-3">
+            <div class="d-flex justify-content-between mb-3">
+                <a class="btn btn-primary mx-1" data-bs-toggle="modal" data-bs-target="#addMaterialModal">
+                    <i class="fas fa-plus"></i> <!-- Icono de agregar -->
+                </a>
+                <a class="btn btn-danger mx-1" href="javascript:history.back();">
+                    <i class="fas fa-arrow-left"></i> <!-- Icono de regresar -->
+                </a>
+                <button class="btn btn-secondary mx-1" onclick="generatePDF()">
+                    <i class="fas fa-file-pdf"></i> <!-- Botón PDF -->
+                </button>
+            </div>
+
+            <input type="text" id="searchInput" class="form-control ms-auto" placeholder="Buscar material..." style="width: 200px;">
+        </div>
+        <table class="table table-striped table-bordered" id="inventoryTable">
+            <thead class="table-light">
+                <tr>
+                    <th>Nombre del Material</th>
+                    <th>Cantidad</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="inventoryTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Modal para agregar y editar material -->
+    <div class="modal fade" id="addMaterialModal" tabindex="-1" aria-labelledby="addMaterialModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addMaterialModalLabel">Agregar Nuevo Material</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addMaterialForm">
+                        <div class="mb-3">
+                            <label for="materialName" class="form-label">Nombre del Material</label>
+                            <input type="text" class="form-control" id="materialName" placeholder="Ingrese el nombre del material" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="materialQuantity" class="form-label">Cantidad</label>
+                            <input type="number" class="form-control" id="materialQuantity" placeholder="Ingrese la cantidad" min="1" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Agregar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Formulario para editar un material -->
+    <div class="modal fade" id="editMaterialModal" tabindex="-1" aria-labelledby="editMaterialModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editMaterialModalLabel">Editar Material</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editMaterialForm">
+                        <div class="mb-3">
+                            <label for="editMaterialName" class="form-label">Nombre del Material</label>
+                            <input type="text" class="form-control" id="editMaterialName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editMaterialQuantity" class="form-label">Cantidad</label>
+                            <input type="number" class="form-control" id="editMaterialQuantity" required min="1">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Actualizar Material</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incluir Bootstrap JS desde archivos locales -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Incluir SweetAlert desde un CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <!-- Ajusta la ruta si es necesario --> <!-- Ajusta la ruta si es necesario -->
+    <!-- Incluir el archivo JavaScript -->
+    <script>// Cambia el nombre de la clave según la página
+const PAGE_ID = 'page2'; // Cambia este valor para cada página
+
+let materials = [];
+
+// Función para mostrar el inventario en la tabla
+function displayInventory() {
+    const inventoryTableBody = document.getElementById('inventoryTableBody');
+    inventoryTableBody.innerHTML = ''; // Limpiar la tabla antes de agregar filas
+
+    if (materials.length === 0) {
+        inventoryTableBody.innerHTML = '<tr><td colspan="3" class="text-center">No hay materiales en el inventario.</td></tr>';
+    } else {
+        materials.forEach((material, index) => {
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+            <td>${material.name}</td>
+            <td id="quantity-${index}">${material.quantity}</td>
+            <td class="text-center">
+            <button class="btn btn-success btn-sm" onclick="addToInventory(${index})">
+            <i class="fas fa-plus d-block d-sm-none"></i>
+            <span class="d-none d-sm-inline">Devolver</span>
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="confirmRemove(${index})">
+            <i class="fas fa-minus d-block d-sm-none"></i>
+            <span class="d-none d-sm-inline">Retirar</span>
+            </button>
+            <button class="btn btn-warning btn-sm" onclick="openEditModal(${index})">
+            <i class="fas fa-edit d-block d-sm-none"></i>
+            <span class="d-none d-sm-inline">Editar</span>
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="confirmDelete(${index})">
+            <i class="fas fa-trash-alt d-block d-sm-none"></i>
+            <span class="d-none d-sm-inline">Eliminar</span>
+            </button>
+            </td>
+            `;
+
+            inventoryTableBody.appendChild(row);
+        });
+    }
+}
+
+// Función para confirmar la eliminación de un material
+function confirmDelete(index) {
+    Swal.fire({
+        title: '¿Estás seguro de eliminar este material?',
+        text: "Esta acción no se puede deshacer.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            removeMaterial(index); // Llama a la función de eliminación
+        }
+    });
+}
+
+function removeMaterial(index) {
+    // Eliminar el material del arreglo
+    materials.splice(index, 1);
+    
+    // Guardar los cambios en localStorage
+    saveMaterials(); 
+
+    // Actualizar la tabla
+    displayInventory(); 
+
+    // Mostrar mensaje de éxito
+    Swal.fire({
+        icon: 'success',
+        title: 'Éxito',
+        text: 'Material eliminado correctamente.'
+    });
+}
+
+// Función para devolver un material
+function addToInventory(index) {
+    // Verifica si se puede devolver el material basado en la cantidad actual
+    if (materials[index].quantity < materials[index].originalQuantity) {
+        materials[index].quantity++; // Incrementar la cantidad en 1
+        saveMaterials(); // Guardar en localStorage
+        displayInventory(); // Actualizar la tabla
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Éxito',
+            text: 'Material devuelto correctamente.'
+        });
+    } else {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se puede devolver más unidades de este material porque ya están en stock.'
+        });
+    }
+}
+
+// Función para confirmar la retirada de un material
+function confirmRemove(index) {
+    Swal.fire({
+        title: '¿Estás seguro de retirar este material?',
+        text: "Esta acción no se puede deshacer.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Retirar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            removeFromInventory(index);
+        }
+    });
+}
+
+// Función para sacar un material del inventario
+function removeFromInventory(index) {
+    if (materials[index].quantity > 0) {
+        materials[index].quantity--; // Reducir la cantidad en 1
+        saveMaterials(); // Guardar en localStorage
+        displayInventory(); // Actualizar la tabla
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Éxito',
+            text: 'Material retirado correctamente.'
+        });
+    } else {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No quedan más unidades de este material.'
+        });
+    }
+}
+
+// Función para agregar un nuevo material
+function addNewMaterial(name, quantity) {
+    const newMaterial = {
+        name: name,
+        quantity: quantity,
+        originalQuantity: quantity
+    };
+    materials.push(newMaterial); // Agregar al arreglo
+    saveMaterials(); // Guardar en localStorage
+    displayInventory(); // Actualizar la tabla
+}
+
+// Función para guardar materiales en localStorage
+function saveMaterials() {
+    localStorage.setItem(`materials-${PAGE_ID}`, JSON.stringify(materials)); // Guardar con clave específica de la página
+}
+
+// Función para cargar materiales desde localStorage
+function loadMaterials() {
+    const storedMaterials = localStorage.getItem(`materials-${PAGE_ID}`); // Cargar con clave específica de la página
+    if (storedMaterials) {
+        materials = JSON.parse(storedMaterials);
+    }
+}
+
+// Evento para manejar el envío del formulario para agregar materiales
+document.getElementById('addMaterialForm').addEventListener('submit', function(event) {
+    event.preventDefault(); // Evitar que el formulario se envíe
+
+    const materialName = document.getElementById('materialName').value.trim();
+    const materialQuantity = parseInt(document.getElementById('materialQuantity').value.trim(), 10);
+
+    if (materialName === '' || isNaN(materialQuantity) || materialQuantity <= 0) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Por favor, ingrese un nombre y una cantidad válida.'
+        });
+        return;
+    }
+
+    const existingRow = materials.find(material => material.name === materialName);
+
+    if (existingRow) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'El material ya existe en el inventario.'
+        });
+    } else {
+        addNewMaterial(materialName, materialQuantity);
+
+        document.getElementById('materialName').value = '';
+        document.getElementById('materialQuantity').value = '';
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addMaterialModal'));
+        modal.hide();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Material agregado',
+            text: 'El material se ha agregado exitosamente al inventario.'
+        });
+    }
+});
+
+// Función para abrir el modal de edición
+function openEditModal(index) {
+    const material = materials[index];
+    document.getElementById('editMaterialName').value = material.name;
+    document.getElementById('editMaterialQuantity').value = material.quantity;
+
+    const form = document.getElementById('editMaterialForm');
+    form.onsubmit = function (event) {
+        event.preventDefault(); // Evitar que el formulario se envíe
+
+        const updatedName = document.getElementById('editMaterialName').value.trim();
+        const updatedQuantity = parseInt(document.getElementById('editMaterialQuantity').value.trim(), 10);
+
+        // Verificar si el nombre actualizado ya existe
+        const existingMaterial = materials.find((mat, idx) => mat.name === updatedName && idx !== index);
+
+        if (existingMaterial) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'El nombre del material ya existe en el inventario.'
+            });
+        } else {
+            // Actualizar el material
+            materials[index].name = updatedName;
+            materials[index].quantity = updatedQuantity;
+            materials[index].originalQuantity = updatedQuantity; // Actualizar también la cantidad original
+
+            saveMaterials(); // Guardar en localStorage
+            displayInventory(); // Actualizar la tabla
+
+            document.getElementById('editMaterialName').value = '';
+            document.getElementById('editMaterialQuantity').value = '';
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editMaterialModal'));
+            modal.hide();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Material actualizado',
+                text: 'El material se ha actualizado exitosamente.'
+            });
+        }
+    };
+
+    const editModal = new bootstrap.Modal(document.getElementById('editMaterialModal'));
+    editModal.show();
+}
+function generatePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+            doc.text("Inventario de Materiales Duran", 14, 15);  // Título
+
+            const tableRows = materials.map(material => [material.name, material.quantity.toString()]);
+
+            doc.autoTable({
+                head: [['Nombre del Material', 'Cantidad']],
+                body: tableRows,
+                startY: 20,
+            });
+
+            doc.save("Inventario de Materiales Duran.pdf");
+        }
+
+// Cargar materiales al iniciar la página
+loadMaterials();
+displayInventory();
+</script>
+</body>
+</html>
